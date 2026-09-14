@@ -1,4 +1,4 @@
-name: Build PLB APK
+name: Build PLB v0.8 Compat
 
 on:
   workflow_dispatch:
@@ -14,12 +14,12 @@ jobs:
       - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Descompactar PLB
+      - name: Descompactar PLB v0.8
         run: |
           rm -rf game
           mkdir -p game
-          unzip -o PLB_GitHub_v0.7.zip -d game
-          echo "Projeto extraido:"
+          unzip -o PLB_GitHub_v0.8_compat.zip -d game
+          echo "Arquivos do projeto:"
           find game -maxdepth 3 -type f
 
       - name: Instalar Java 17
@@ -50,44 +50,58 @@ jobs:
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -dname "CN=Android Debug,O=PLB,C=BR"
+            -dname "CN=Android Debug,O=Pro League Brasil,C=BR"
 
-      - name: Configurar keystore
-        run: |
-          sed -i \
-            's|keystore/debug=""|keystore/debug="'"${{ github.workspace }}"'/game/debug.keystore"|' \
-            game/export_presets.cfg
-
-          echo "Keystore:"
-          grep keystore game/export_presets.cfg
-
-      - name: Corrigir ETC2 ASTC para Android
+      - name: Configurar compatibilidade Android
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("game/project.godot")
-          texto = p.read_text()
+          preset = Path("game/export_presets.cfg")
+          texto = preset.read_text()
+
+          texto = texto.replace(
+              'keystore/debug=""',
+              'keystore/debug="' + str(Path.cwd() / "game/debug.keystore") + '"'
+          )
+
+          texto = texto.replace(
+              "architectures/armeabi-v7a=false",
+              "architectures/armeabi-v7a=true"
+          )
+
+          texto = texto.replace(
+              "architectures/arm64-v8a=false",
+              "architectures/arm64-v8a=true"
+          )
+
+          preset.write_text(texto)
+
+          project = Path("game/project.godot")
+          ptexto = project.read_text()
 
           linha = "textures/vram_compression/import_etc2_astc=true"
 
-          if linha not in texto:
-              if "[rendering]" in texto:
-                  texto = texto.replace(
+          if linha not in ptexto:
+              if "[rendering]" in ptexto:
+                  ptexto = ptexto.replace(
                       "[rendering]",
                       "[rendering]\n" + linha,
                       1
                   )
               else:
-                  texto += "\n[rendering]\n" + linha + "\n"
+                  ptexto += "\n[rendering]\n" + linha + "\n"
 
-          p.write_text(texto)
+          project.write_text(ptexto)
           PY
 
-          echo "Configuracao rendering:"
-          grep -A10 '^\[rendering\]' game/project.godot
+          echo "Arquiteturas:"
+          grep "architectures/" game/export_presets.cfg
 
-      - name: Gerar APK com Godot
+          echo "Keystore:"
+          grep "keystore/debug" game/export_presets.cfg
+
+      - name: Gerar APK PLB v0.8
         id: export
         uses: firebelley/godot-export@v7.0.0
         env:
@@ -107,27 +121,29 @@ jobs:
         run: |
           mkdir -p apk
 
-          APK=$(find "${{ steps.export.outputs.build_directory }}" -type f -name "*.apk" | head -n 1)
+          APK=$(find "${{ steps.export.outputs.build_directory }}" \
+            -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
             APK=$(find game -type f -name "*.apk" | head -n 1)
           fi
 
           if [ -z "$APK" ]; then
-            echo "APK nao encontrado"
+            echo "ERRO: APK nao encontrado"
             exit 1
           fi
 
-          echo "APK encontrado em:"
+          echo "APK encontrado:"
           echo "$APK"
 
-          cp "$APK" apk/ProLeagueBrasil-v0.7.apk
+          cp "$APK" apk/ProLeagueBrasil-v0.8-compat.apk
+
           ls -lh apk/
 
       - name: Salvar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PLB-v0.7-APK
-          path: apk/ProLeagueBrasil-v0.7.apk
+          name: PLB-v0.8-COMPAT-APK
+          path: apk/ProLeagueBrasil-v0.8-compat.apk
           if-no-files-found: error
           retention-days: 30
