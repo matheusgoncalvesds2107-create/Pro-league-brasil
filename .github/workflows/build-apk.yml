@@ -1,0 +1,52 @@
+name: Build PLB APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Descompactar PLB
+        run: |
+          mkdir game
+          unzip PLB_GitHub_v0.7.zip -d game
+          echo "Conteudo:"
+          find game -maxdepth 3 -type f
+
+      - name: Configurar Android
+        uses: android-actions/setup-android@v3
+
+      - name: Gerar APK com Godot
+        id: export
+        uses: firebelley/godot-export@v7.0.0
+        with:
+          godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip
+          godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.6-stable/Godot_v4.6-stable_export_templates.tpz
+          relative_project_path: ./game
+          presets_to_export: Android
+          export_debug: true
+          cache: true
+
+      - name: Localizar APK
+        run: |
+          mkdir -p apk
+          APK=$(find "${{ steps.export.outputs.build_directory }}" -type f -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "APK nao encontrado"
+            exit 1
+          fi
+          cp "$APK" apk/ProLeagueBrasil-v0.7.apk
+
+      - name: Salvar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PLB-v0.7-APK
+          path: apk/ProLeagueBrasil-v0.7.apk
