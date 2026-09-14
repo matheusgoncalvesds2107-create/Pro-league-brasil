@@ -19,6 +19,7 @@ jobs:
           rm -rf game
           mkdir -p game
           unzip -o PLB_GitHub_v0.7.zip -d game
+          echo "Projeto extraido:"
           find game -maxdepth 3 -type f
 
       - name: Instalar Java 17
@@ -33,6 +34,7 @@ jobs:
       - name: Instalar componentes Android
         run: |
           yes | sdkmanager --licenses >/dev/null || true
+
           sdkmanager \
             "platform-tools" \
             "build-tools;36.1.0" \
@@ -50,35 +52,40 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=PLB,C=BR"
 
-      - name: Configurar Godot Android
+      - name: Configurar keystore
         run: |
-          mkdir -p "$HOME/.config/godot"
-
-          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-
-          export/android/android_sdk_path = "$ANDROID_SDK_ROOT"
-          export/android/java_sdk_path = "$JAVA_HOME"
-          EOF
-
           sed -i \
             's|keystore/debug=""|keystore/debug="'"${{ github.workspace }}"'/game/debug.keystore"|' \
             game/export_presets.cfg
 
-          sed -i \
-            's|keystore/debug_user="androiddebugkey"|keystore/debug_user="androiddebugkey"|' \
-            game/export_presets.cfg
-
-          sed -i \
-            's|keystore/debug_password="android"|keystore/debug_password="android"|' \
-            game/export_presets.cfg
-
-          echo "JAVA_HOME=$JAVA_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          cat "$HOME/.config/godot/editor_settings-4.tres"
+          echo "Keystore:"
           grep keystore game/export_presets.cfg
+
+      - name: Corrigir ETC2 ASTC para Android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("game/project.godot")
+          texto = p.read_text()
+
+          linha = "textures/vram_compression/import_etc2_astc=true"
+
+          if linha not in texto:
+              if "[rendering]" in texto:
+                  texto = texto.replace(
+                      "[rendering]",
+                      "[rendering]\n" + linha,
+                      1
+                  )
+              else:
+                  texto += "\n[rendering]\n" + linha + "\n"
+
+          p.write_text(texto)
+          PY
+
+          echo "Configuracao rendering:"
+          grep -A10 '^\[rendering\]' game/project.godot
 
       - name: Gerar APK com Godot
         id: export
@@ -94,7 +101,7 @@ jobs:
           presets_to_export: Android
           export_debug: true
           cache: true
-          verbose: true
+          godot_verbose: true
 
       - name: Localizar APK
         run: |
@@ -103,10 +110,16 @@ jobs:
           APK=$(find "${{ steps.export.outputs.build_directory }}" -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
+            APK=$(find game -type f -name "*.apk" | head -n 1)
+          fi
+
+          if [ -z "$APK" ]; then
             echo "APK nao encontrado"
-            find "${{ steps.export.outputs.build_directory }}" -type f || true
             exit 1
           fi
+
+          echo "APK encontrado em:"
+          echo "$APK"
 
           cp "$APK" apk/ProLeagueBrasil-v0.7.apk
           ls -lh apk/
@@ -117,3 +130,4 @@ jobs:
           name: PLB-v0.7-APK
           path: apk/ProLeagueBrasil-v0.7.apk
           if-no-files-found: error
+          retention-days: 30
