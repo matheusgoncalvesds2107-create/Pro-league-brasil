@@ -18,11 +18,27 @@ jobs:
         run: |
           mkdir game
           unzip PLB_GitHub_v0.7.zip -d game
-          echo "Conteudo:"
           find game -maxdepth 3 -type f
 
       - name: Configurar Android
         uses: android-actions/setup-android@v3
+
+      - name: Criar debug keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore "${{ github.workspace }}/game/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=BR"
+
+      - name: Configurar keystore no Godot
+        run: |
+          sed -i 's|keystore/debug=""|keystore/debug="debug.keystore"|' game/export_presets.cfg
 
       - name: Gerar APK com Godot
         id: export
@@ -39,10 +55,12 @@ jobs:
         run: |
           mkdir -p apk
           APK=$(find "${{ steps.export.outputs.build_directory }}" -type f -name "*.apk" | head -n 1)
+
           if [ -z "$APK" ]; then
             echo "APK nao encontrado"
             exit 1
           fi
+
           cp "$APK" apk/ProLeagueBrasil-v0.7.apk
 
       - name: Salvar APK
