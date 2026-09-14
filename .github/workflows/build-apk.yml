@@ -1,4 +1,4 @@
-name: Build PLB v0.8 Compat
+name: Build PLB v0.9 Humano
 
 on:
   workflow_dispatch:
@@ -14,12 +14,13 @@ jobs:
       - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Descompactar PLB v0.8
+      - name: Descompactar PLB v0.9
         run: |
           rm -rf game
           mkdir -p game
-          unzip -o PLB_GitHub_v0.8_compat.zip -d game
-          echo "Arquivos do projeto:"
+          unzip -o PLB_GitHub_v0.9_humano.zip -d game
+
+          echo "Arquivos extraidos:"
           find game -maxdepth 3 -type f
 
       - name: Instalar Java 17
@@ -52,7 +53,7 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Pro League Brasil,C=BR"
 
-      - name: Configurar compatibilidade Android
+      - name: Configurar Android e compatibilidade
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -96,12 +97,15 @@ jobs:
           PY
 
           echo "Arquiteturas:"
-          grep "architectures/" game/export_presets.cfg
+          grep "architectures/" game/export_presets.cfg || true
 
           echo "Keystore:"
-          grep "keystore/debug" game/export_presets.cfg
+          grep "keystore/debug" game/export_presets.cfg || true
 
-      - name: Gerar APK PLB v0.8
+          echo "Rendering:"
+          grep -A10 '^\[rendering\]' game/project.godot || true
+
+      - name: Gerar APK PLB v0.9
         id: export
         uses: firebelley/godot-export@v7.0.0
         env:
@@ -136,14 +140,14 @@ jobs:
           echo "APK encontrado:"
           echo "$APK"
 
-          cp "$APK" apk/ProLeagueBrasil-v0.8-compat.apk
+          cp "$APK" apk/ProLeagueBrasil-v0.9-humano.apk
 
           ls -lh apk/
 
       - name: Salvar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PLB-v0.8-COMPAT-APK
-          path: apk/ProLeagueBrasil-v0.8-compat.apk
+          name: PLB-v0.9-HUMANO-APK
+          path: apk/ProLeagueBrasil-v0.9-humano.apk
           if-no-files-found: error
           retention-days: 30
